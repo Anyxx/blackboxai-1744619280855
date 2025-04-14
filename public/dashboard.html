@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracking Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <!-- Header -->
+        <div class="mb-8">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">Tracking Dashboard</h1>
+                    <p class="mt-2 text-gray-600">Monitoring visits for link: <span id="linkId" class="font-mono bg-gray-100 px-2 py-1 rounded"></span></p>
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="refreshData()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                    <a href="/" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">
+                        <i class="fas fa-home mr-2"></i>Home
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-blue-100 rounded-lg">
+                        <i class="fas fa-eye text-blue-600 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h2 class="text-sm font-medium text-gray-500">Total Visits</h2>
+                        <p id="totalVisits" class="text-2xl font-semibold text-gray-900">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-green-100 rounded-lg">
+                        <i class="fas fa-clock text-green-600 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h2 class="text-sm font-medium text-gray-500">Created</h2>
+                        <p id="createdAt" class="text-2xl font-semibold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-purple-100 rounded-lg">
+                        <i class="fas fa-history text-purple-600 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h2 class="text-sm font-medium text-gray-500">Last Visit</h2>
+                        <p id="lastVisit" class="text-2xl font-semibold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map and Table Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Map Section -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Visit Locations</h2>
+                <div id="map"></div>
+            </div>
+
+            <!-- Visits Table -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Visit History</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+                            </tr>
+                        </thead>
+                        <tbody id="visitsTableBody" class="divide-y divide-gray-200">
+                            <!-- Visits will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let markers = [];
+
+        // Initialize map
+        function initializeMap() {
+            map = L.map('map').setView([0, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleString();
+        }
+
+        // Get link ID from URL
+        function getLinkId() {
+            return window.location.pathname.split('/').pop();
+        }
+
+        // Update map markers
+        function updateMap(visits) {
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+
+            // Add new markers
+            visits.forEach(visit => {
+                const marker = L.marker([visit.latitude, visit.longitude])
+                    .bindPopup(`
+                        <strong>Visit Time:</strong><br>
+                        ${formatDate(visit.timestamp)}<br>
+                        <strong>Device:</strong><br>
+                        ${visit.userAgent}
+                    `);
+                markers.push(marker);
+                marker.addTo(map);
+            });
+
+            // Fit map to markers if there are any
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+
+        // Refresh dashboard data
+        async function refreshData() {
+            try {
+                const linkId = getLinkId();
+                const response = await fetch(`/api/links/${linkId}`);
+                const data = await response.json();
+
+                // Update stats
+                document.getElementById('linkId').textContent = linkId;
+                document.getElementById('totalVisits').textContent = data.visits.length;
+                document.getElementById('createdAt').textContent = formatDate(data.createdAt);
+                document.getElementById('lastVisit').textContent = data.lastVisited ? formatDate(data.lastVisited) : 'Never';
+
+                // Update map
+                updateMap(data.visits);
+
+                // Update table
+                const tbody = document.getElementById('visitsTableBody');
+                tbody.innerHTML = data.visits.map(visit => `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${formatDate(visit.timestamp)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${visit.latitude.toFixed(6)}, ${visit.longitude.toFixed(6)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${visit.userAgent}
+                        </td>
+                    </tr>
+                `).join('');
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeMap();
+            refreshData();
+            // Refresh every 30 seconds
+            setInterval(refreshData, 30000);
+        });
+    </script>
+</body>
+</html>
